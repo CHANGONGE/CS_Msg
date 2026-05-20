@@ -2,6 +2,7 @@
 반죽과빵 CS 텔레그램 알림 서버 (port 5050)
 - POST /notify-admin  : 고객 문의 접수 -> 관리자 알림
 - POST /notify-customer : 처리완료 -> 고객 알림
+- POST /embed         : Jina AI 임베딩 프록시 (Supabase Edge Fn용)
 - GET  /ping          : 서버 상태 확인
 - poll_bot (daemon)   : /start 수신 -> 알림코드 안내
 
@@ -24,6 +25,7 @@ TG_API        = 'https://api.telegram.org/bot' + BOT_TOKEN
 
 SUPABASE_URL  = 'https://cejujszwthlacdgsllzx.supabase.co'
 SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNlanVqc3p3dGhsYWNkZ3NsbHp4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMjc5MjQsImV4cCI6MjA5MzYwMzkyNH0.Wx_DQhg7VxvqGSyyLYH0d31B77XmlrqwNy4M9afLQqY'
+JINA_API_KEY  = 'jina_83411b42bc7d40529c1a8ba50e3649b74l6Vg0pxBePdFycvLPK0rQoKJAg6'
 
 
 def sb_link_telegram(inquiry_id, chat_id):
@@ -69,6 +71,38 @@ def _log(msg):
 @app.route('/ping')
 def ping():
     return jsonify({'status': 'ok'})
+
+
+@app.route('/embed', methods=['POST', 'OPTIONS'])
+def embed():
+    if request.method == 'OPTIONS':
+        return '', 200
+    data = request.get_json(silent=True) or {}
+    text = data.get('text', '')
+    if not text:
+        return jsonify({'error': 'text required'}), 400
+    try:
+        r = requests.post(
+            'https://api.jina.ai/v1/embeddings',
+            headers={
+                'Authorization': 'Bearer ' + JINA_API_KEY,
+                'Content-Type': 'application/json',
+                'User-Agent': 'Mozilla/5.0'
+            },
+            json={
+                'model': 'jina-embeddings-v3',
+                'input': [text],
+                'dimensions': 768,
+                'task': 'retrieval.query'
+            },
+            timeout=30
+        )
+        if not r.ok:
+            return jsonify({'error': r.text}), 500
+        return jsonify({'embedding': r.json()['data'][0]['embedding']})
+    except Exception as e:
+        _log('embed error: ' + str(e))
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/notify-admin', methods=['POST', 'OPTIONS'])
