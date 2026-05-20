@@ -22,6 +22,30 @@ BOT_TOKEN     = '8810822027:AAEXle-a-WGhUeO5v1StrihYvl-fa8DPWtw'
 ADMIN_CHAT_ID = '6326062373'
 TG_API        = 'https://api.telegram.org/bot' + BOT_TOKEN
 
+SUPABASE_URL  = 'https://cejujszwthlacdgsllzx.supabase.co'
+SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNlanVqc3p3dGhsYWNkZ3NsbHp4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMjc5MjQsImV4cCI6MjA5MzYwMzkyNH0.Wx_DQhg7VxvqGSyyLYH0d31B77XmlrqwNy4M9afLQqY'
+
+
+def sb_link_telegram(inquiry_id, chat_id):
+    """unresolved_queries 레코드에 telegram_chat_id 저장"""
+    try:
+        r = requests.patch(
+            SUPABASE_URL + '/rest/v1/unresolved_queries',
+            params={'id': 'eq.' + str(inquiry_id)},
+            json={'telegram_chat_id': str(chat_id), 'push_registered': 'Telegram'},
+            headers={
+                'apikey': SUPABASE_ANON,
+                'Authorization': 'Bearer ' + SUPABASE_ANON,
+                'Content-Type': 'application/json',
+                'Prefer': 'return=minimal'
+            },
+            timeout=10
+        )
+        return r.ok
+    except Exception as e:
+        _log('sb_link_telegram error: ' + str(e))
+        return False
+
 
 def tg_send(chat_id, text):
     try:
@@ -80,11 +104,16 @@ def notify_customer():
 # ── /start 폴링 ──────────────────────────────────
 _last_update_id = 0
 
-REPLY_TEXT = (
+REPLY_LINKED = (
+    '✅ 알림 연결 완료!\n\n'
+    '담당자 답변 완료 시 이 채팅으로 바로 알림이 옵니다.\n'
+    '조금만 기다려 주세요 😊'
+)
+REPLY_MANUAL = (
     '안녕하세요! 반죽과빵 CS 알림봇입니다.\n\n'
-    '문의 접수 폼에 아래 알림코드를 입력하시면\n'
-    '답변 완료 시 이 채팅으로 알림이 옵니다.\n\n'
-    '알림코드: '
+    '문의를 먼저 접수하신 후\n'
+    '접수 완료 화면의 [텔레그램 알림 연결하기] 버튼을 눌러주세요.\n\n'
+    '고객센터: https://banjukbang-cs.vercel.app'
 )
 
 def poll_bot():
@@ -113,9 +142,18 @@ def poll_bot():
                     _log('[poll] uid=' + str(uid) + ' cid=' + cid)
 
                     if text.startswith('/start') and cid:
-                        reply = REPLY_TEXT + cid
-                        ok = tg_send(cid, reply)
-                        _log('[poll] /start -> cid=' + cid + ' ok=' + str(ok))
+                        parts = text.split(None, 1)
+                        inquiry_id = parts[1].strip() if len(parts) > 1 else ''
+                        if inquiry_id:
+                            # 딥링크로 진입 → DB 자동 연결
+                            ok_db = sb_link_telegram(inquiry_id, cid)
+                            reply = REPLY_LINKED if ok_db else REPLY_MANUAL
+                            _log('[poll] /start inquiry_id=' + inquiry_id + ' cid=' + cid + ' db=' + str(ok_db))
+                        else:
+                            # 직접 봇 접근
+                            reply = REPLY_MANUAL
+                            _log('[poll] /start (no inquiry_id) cid=' + cid)
+                        tg_send(cid, reply)
 
                 except Exception as e:
                     _log('[poll] item error: ' + str(e))
