@@ -50,15 +50,17 @@ def sb_link_telegram(inquiry_id, chat_id):
 
 
 def sb_log_notification(ntype, recipient, message, status):
-    """notification_log 테이블에 발송이력 기록 (비차단, 실패 시 무시)"""
+    """notification_log 테이블에 발송이력 기록 (비차단, 실패 시 무시)
+    실제 컬럼: subscriber_id(uuid), channel, message, status, sent_at
+    recipient 정보는 message 앞에 태그로 포함 (예: [관리자] 내용)
+    """
     try:
+        tagged_msg = '[' + ntype + '→' + str(recipient) + '] ' + message
         requests.post(
             SUPABASE_URL + '/rest/v1/notification_log',
             json={
-                'type': ntype,
                 'channel': 'telegram',
-                'recipient': str(recipient),
-                'message': message,
+                'message': tagged_msg[:500],
                 'status': status,
             },
             headers={
