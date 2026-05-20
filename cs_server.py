@@ -49,6 +49,30 @@ def sb_link_telegram(inquiry_id, chat_id):
         return False
 
 
+def sb_log_notification(ntype, recipient, message, status):
+    """notification_log 테이블에 발송이력 기록 (비차단, 실패 시 무시)"""
+    try:
+        requests.post(
+            SUPABASE_URL + '/rest/v1/notification_log',
+            json={
+                'type': ntype,
+                'channel': 'telegram',
+                'recipient': str(recipient),
+                'message': message,
+                'status': status,
+            },
+            headers={
+                'apikey': SUPABASE_ANON,
+                'Authorization': 'Bearer ' + SUPABASE_ANON,
+                'Content-Type': 'application/json',
+                'Prefer': 'return=minimal'
+            },
+            timeout=5
+        )
+    except Exception as e:
+        _log('sb_log_notification error: ' + str(e))
+
+
 def tg_send(chat_id, text):
     try:
         r = requests.post(TG_API + '/sendMessage', json={
@@ -113,12 +137,19 @@ def notify_admin():
     content = data.get('content', '')
     contact = data.get('user_contact', 'none')
     tg_id   = data.get('telegram_chat_id', '')
+    title   = data.get('title', '[CS] 미해결 문의 접수')
 
-    lines = ['[CS] 미해결 문의 접수', '내용: ' + content, '연락처: ' + contact]
+    lines = [title, '내용: ' + content, '연락처: ' + contact]
     if tg_id:
         lines.append('알림코드: ' + tg_id)
 
-    ok = tg_send(ADMIN_CHAT_ID, '\n'.join(lines))
+    msg = '\n'.join(lines)
+    ok  = tg_send(ADMIN_CHAT_ID, msg)
+    threading.Thread(
+        target=sb_log_notification,
+        args=('admin_alert', 'admin', msg, 'sent' if ok else 'failed'),
+        daemon=True
+    ).start()
     return jsonify({'ok': ok})
 
 
@@ -132,6 +163,11 @@ def notify_customer():
     if not chat_id:
         return jsonify({'ok': False, 'error': 'chat_id missing'})
     ok = tg_send(chat_id, message)
+    threading.Thread(
+        target=sb_log_notification,
+        args=('customer_reply', chat_id, message, 'sent' if ok else 'failed'),
+        daemon=True
+    ).start()
     return jsonify({'ok': ok})
 
 
