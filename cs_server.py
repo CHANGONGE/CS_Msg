@@ -9,6 +9,7 @@
 실행: python cs_server.py
 패키지: pip install flask flask-cors requests
 """
+import os
 import threading
 import time
 
@@ -19,13 +20,13 @@ import requests
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-BOT_TOKEN     = '8810822027:AAEXle-a-WGhUeO5v1StrihYvl-fa8DPWtw'
-ADMIN_CHAT_ID = '6326062373'
+BOT_TOKEN     = os.environ['BOT_TOKEN']
+ADMIN_CHAT_ID = os.environ['ADMIN_CHAT_ID']
 TG_API        = 'https://api.telegram.org/bot' + BOT_TOKEN
 
-SUPABASE_URL  = 'https://cejujszwthlacdgsllzx.supabase.co'
-SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNlanVqc3p3dGhsYWNkZ3NsbHp4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMjc5MjQsImV4cCI6MjA5MzYwMzkyNH0.Wx_DQhg7VxvqGSyyLYH0d31B77XmlrqwNy4M9afLQqY'
-JINA_API_KEY  = 'jina_83411b42bc7d40529c1a8ba50e3649b74l6Vg0pxBePdFycvLPK0rQoKJAg6'
+SUPABASE_URL  = os.environ['SUPABASE_URL']
+SUPABASE_ANON = os.environ['SUPABASE_ANON']
+JINA_API_KEY  = os.environ['JINA_API_KEY']
 
 
 def sb_link_telegram(inquiry_id, chat_id):
