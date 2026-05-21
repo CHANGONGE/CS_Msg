@@ -235,17 +235,16 @@ def poll_bot():
                         inquiry_id = parts[1].strip() if len(parts) > 1 else ''
                         if inquiry_id:
                             result = sb_link_telegram(inquiry_id, cid)
-                            if result == 'linked':
-                                reply = REPLY_LINKED
-                            elif result == 'already':
-                                reply = REPLY_ALREADY
-                            else:
-                                reply = REPLY_MANUAL
                             _log('[poll] /start inquiry_id=' + inquiry_id + ' cid=' + cid + ' result=' + result)
+                            if result == 'linked':
+                                tg_send(cid, REPLY_LINKED)
+                            elif result == 'already':
+                                pass  # 이미 연결됨 — 무응답 (중복 메시지 방지)
+                            else:
+                                tg_send(cid, REPLY_MANUAL)
                         else:
-                            reply = REPLY_MANUAL
                             _log('[poll] /start (no inquiry_id) cid=' + cid)
-                        tg_send(cid, reply)
+                            tg_send(cid, REPLY_MANUAL)
 
                 except Exception as e:
                     _log('[poll] item error: ' + str(e))
