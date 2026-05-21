@@ -28,48 +28,37 @@ SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsIn
 JINA_API_KEY  = 'jina_83411b42bc7d40529c1a8ba50e3649b74l6Vg0pxBePdFycvLPK0rQoKJAg6'
 
 
-def sb_check_already_linked(inquiry_id):
-    """이미 telegram_chat_id가 연결된 문의인지 확인. 연결돼 있으면 True 반환"""
-    try:
-        r = requests.get(
-            SUPABASE_URL + '/rest/v1/unresolved_queries',
-            params={'id': 'eq.' + str(inquiry_id), 'select': 'telegram_chat_id'},
-            headers={
-                'apikey': SUPABASE_ANON,
-                'Authorization': 'Bearer ' + SUPABASE_ANON,
-            },
-            timeout=10
-        )
-        if not r.ok:
-            return False
-        rows = r.json()
-        if rows and rows[0].get('telegram_chat_id'):
-            return True
-        return False
-    except Exception as e:
-        _log('sb_check_already_linked error: ' + str(e))
-        return False
-
-
 def sb_link_telegram(inquiry_id, chat_id):
-    """unresolved_queries 레코드에 telegram_chat_id 저장"""
+    """unresolved_queries에 telegram_chat_id 저장.
+    telegram_chat_id IS NULL인 row만 업데이트 (이미 연결된 경우 건너뜀).
+    반환: 'linked' | 'already' | 'error'
+    """
     try:
         r = requests.patch(
             SUPABASE_URL + '/rest/v1/unresolved_queries',
-            params={'id': 'eq.' + str(inquiry_id)},
+            params={
+                'id': 'eq.' + str(inquiry_id),
+                'telegram_chat_id': 'is.null'
+            },
             json={'telegram_chat_id': str(chat_id), 'push_registered': 'Telegram'},
             headers={
                 'apikey': SUPABASE_ANON,
                 'Authorization': 'Bearer ' + SUPABASE_ANON,
                 'Content-Type': 'application/json',
-                'Prefer': 'return=minimal'
+                'Prefer': 'return=representation'
             },
             timeout=10
         )
-        return r.ok
+        if not r.ok:
+            _log('sb_link_telegram http error: ' + str(r.status_code) + ' ' + r.text[:200])
+            return 'error'
+        rows = r.json()
+        if isinstance(rows, list) and len(rows) > 0:
+            return 'linked'   # 새로 연결 성공
+        return 'already'      # 이미 연결돼 있었음 (조건 불일치 = 0 rows updated)
     except Exception as e:
         _log('sb_link_telegram error: ' + str(e))
-        return False
+        return 'error'
 
 
 def sb_log_notification(ntype, recipient, message, status):
@@ -245,16 +234,15 @@ def poll_bot():
                         parts = text.split(None, 1)
                         inquiry_id = parts[1].strip() if len(parts) > 1 else ''
                         if inquiry_id:
-                            # 이미 연결된 문의인지 먼저 확인
-                            if sb_check_already_linked(inquiry_id):
+                            result = sb_link_telegram(inquiry_id, cid)
+                            if result == 'linked':
+                                reply = REPLY_LINKED
+                            elif result == 'already':
                                 reply = REPLY_ALREADY
-                                _log('[poll] /start already_linked inquiry_id=' + inquiry_id + ' cid=' + cid)
                             else:
-                                ok_db = sb_link_telegram(inquiry_id, cid)
-                                reply = REPLY_LINKED if ok_db else REPLY_MANUAL
-                                _log('[poll] /start inquiry_id=' + inquiry_id + ' cid=' + cid + ' db=' + str(ok_db))
+                                reply = REPLY_MANUAL
+                            _log('[poll] /start inquiry_id=' + inquiry_id + ' cid=' + cid + ' result=' + result)
                         else:
-                            # 직접 봇 접근
                             reply = REPLY_MANUAL
                             _log('[poll] /start (no inquiry_id) cid=' + cid)
                         tg_send(cid, reply)
