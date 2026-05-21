@@ -209,6 +209,18 @@ REPLY_MANUAL = (
 def poll_bot():
     global _last_update_id
     _log('[poll] started')
+
+    # 서버 재시작 시 오래된 업데이트 skip (중복 메시지 방지)
+    try:
+        r0 = requests.get(TG_API + '/getUpdates', params={'offset': -1, 'timeout': 0}, timeout=5)
+        if r0.ok:
+            results = r0.json().get('result', [])
+            if results:
+                _last_update_id = results[-1]['update_id']
+                _log('[poll] startup: skip to update_id=' + str(_last_update_id))
+    except Exception as e:
+        _log('[poll] startup skip error: ' + str(e))
+
     while True:
         try:
             r = requests.get(TG_API + '/getUpdates', params={
