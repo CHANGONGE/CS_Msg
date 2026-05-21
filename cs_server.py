@@ -1,7 +1,7 @@
 """
 반죽과빵 CS 텔레그램 알림 서버 (port 5050)
-- POST /notify-admin  : 고객 문의 접수 -> 관리자 알림
-- POST /notify-customer : 처리완료 -> 고객 알림
+- POST /notify-admin  : 고객 문의 접수 -> 관리자 알림 + notification_log INSERT
+- POST /notify-customer : 처리완료 -> 고객 알림 + notification_log INSERT
 - POST /embed         : Jina AI 임베딩 프록시 (Supabase Edge Fn용)
 - GET  /ping          : 서버 상태 확인
 - poll_bot (daemon)   : /start 수신 -> 알림코드 안내
