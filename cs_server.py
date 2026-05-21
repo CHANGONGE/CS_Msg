@@ -28,6 +28,29 @@ SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsIn
 JINA_API_KEY  = 'jina_83411b42bc7d40529c1a8ba50e3649b74l6Vg0pxBePdFycvLPK0rQoKJAg6'
 
 
+def sb_check_already_linked(inquiry_id):
+    """이미 telegram_chat_id가 연결된 문의인지 확인. 연결돼 있으면 True 반환"""
+    try:
+        r = requests.get(
+            SUPABASE_URL + '/rest/v1/unresolved_queries',
+            params={'id': 'eq.' + str(inquiry_id), 'select': 'telegram_chat_id'},
+            headers={
+                'apikey': SUPABASE_ANON,
+                'Authorization': 'Bearer ' + SUPABASE_ANON,
+            },
+            timeout=10
+        )
+        if not r.ok:
+            return False
+        rows = r.json()
+        if rows and rows[0].get('telegram_chat_id'):
+            return True
+        return False
+    except Exception as e:
+        _log('sb_check_already_linked error: ' + str(e))
+        return False
+
+
 def sb_link_telegram(inquiry_id, chat_id):
     """unresolved_queries 레코드에 telegram_chat_id 저장"""
     try:
@@ -181,6 +204,11 @@ REPLY_LINKED = (
     '담당자 답변 완료 시 이 채팅으로 바로 알림이 옵니다.\n'
     '조금만 기다려 주세요 😊'
 )
+REPLY_ALREADY = (
+    'ℹ️ 이미 알림 연결이 완료된 문의입니다.\n\n'
+    '담당자 답변 완료 시 이 채팅으로 알림이 전송됩니다.\n'
+    '중복 연결은 필요하지 않습니다 😊'
+)
 REPLY_MANUAL = (
     '안녕하세요! 반죽과빵 CS 알림봇입니다.\n\n'
     '문의를 먼저 접수하신 후\n'
@@ -217,10 +245,14 @@ def poll_bot():
                         parts = text.split(None, 1)
                         inquiry_id = parts[1].strip() if len(parts) > 1 else ''
                         if inquiry_id:
-                            # 딥링크로 진입 → DB 자동 연결
-                            ok_db = sb_link_telegram(inquiry_id, cid)
-                            reply = REPLY_LINKED if ok_db else REPLY_MANUAL
-                            _log('[poll] /start inquiry_id=' + inquiry_id + ' cid=' + cid + ' db=' + str(ok_db))
+                            # 이미 연결된 문의인지 먼저 확인
+                            if sb_check_already_linked(inquiry_id):
+                                reply = REPLY_ALREADY
+                                _log('[poll] /start already_linked inquiry_id=' + inquiry_id + ' cid=' + cid)
+                            else:
+                                ok_db = sb_link_telegram(inquiry_id, cid)
+                                reply = REPLY_LINKED if ok_db else REPLY_MANUAL
+                                _log('[poll] /start inquiry_id=' + inquiry_id + ' cid=' + cid + ' db=' + str(ok_db))
                         else:
                             # 직접 봇 접근
                             reply = REPLY_MANUAL
