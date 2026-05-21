@@ -188,6 +188,26 @@ def notify_customer():
 
 # ── /start 폴링 ──────────────────────────────────
 _last_update_id = 0
+_bot_username   = ''
+
+def _init_bot_username():
+    global _bot_username
+    try:
+        r = requests.get(TG_API + '/getMe', timeout=5)
+        if r.ok:
+            _bot_username = r.json().get('result', {}).get('username', '')
+            _log('[init] bot username: @' + _bot_username)
+    except Exception as e:
+        _log('[init] getMe error: ' + str(e))
+
+_init_bot_username()
+
+
+@app.route('/bot-username', methods=['GET', 'OPTIONS'])
+def bot_username():
+    if request.method == 'OPTIONS':
+        return '', 200
+    return jsonify({'username': _bot_username})
 
 REPLY_LINKED = (
     '✅ 알림 연결 완료!\n\n'
